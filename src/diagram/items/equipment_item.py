@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QPen
+
+from diagram.items.base_node_item import NodeItemBase
+
+HANDLE_SIZE = 10.0
+MIN_WIDTH = 60.0
+MIN_HEIGHT = 40.0
+
+
+class EquipmentItem(NodeItemBase):
+    resize_finished = Signal(str, float, float, float, float)  # node_id, old_w, old_h, new_w, new_h
+
+    def __init__(self, node_id: str, width: float, height: float, label_lines: list[str]) -> None:
+        super().__init__(node_id, width, height)
+        self.label_lines = label_lines
+        self._resizing = False
+        self._resize_start_size = (width, height)
+        self._resize_start_mouse = None
+
+    def _handle_rect(self) -> QRectF:
+        return QRectF(self._width - HANDLE_SIZE, self._height - HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE)
+
+    def paint(self, painter, option, widget=None) -> None:  # noqa: N802
+        rect = self.boundingRect()
+        pen = QPen(Qt.GlobalColor.black, 2 if self.isSelected() else 1)
+        painter.setPen(pen)
+        painter.setBrush(QBrush(QColor("#eaf1fb")))
+        painter.drawRect(rect)
+
+        painter.setPen(QPen(Qt.GlobalColor.black))
+        for i, line in enumerate(self.label_lines):
+            painter.drawText(
+                QRectF(4, 4 + i * 16, self._width - 8, 16),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                line,
+            )
+
+        painter.setBrush(QBrush(QColor("#7a7a7a")))
+        painter.setPen(QPen(Qt.GlobalColor.darkGray))
+        painter.drawRect(self._handle_rect())
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if self._handle_rect().contains(event.pos()):
+            self._resizing = True
+            self._resize_start_size = (self._width, self._height)
+            self._resize_start_mouse = event.scenePos()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        if self._resizing:
+            delta = event.scenePos() - self._resize_start_mouse
+            new_width = max(MIN_WIDTH, self._resize_start_size[0] + delta.x())
+            new_height = max(MIN_HEIGHT, self._resize_start_size[1] + delta.y())
+            self.set_size(new_width, new_height)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        if self._resizing:
+            self._resizing = False
+            old_w, old_h = self._resize_start_size
+            if (old_w, old_h) != (self._width, self._height):
+                self.resize_finished.emit(self.node_id, old_w, old_h, self._width, self._height)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)

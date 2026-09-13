@@ -1,0 +1,11 @@
+# ランタイム依存パッケージ（docs/architecture.md 4.節の技術構成に対応）
+
+# 6.9以降はWindows環境でQt6Core.dllとシステムicuuc.dllが衝突しDLLロードに失敗する事例を確認したため、
+# 動作検証済みの6.8系に固定する（アップグレードする場合は事前にWindows実機での起動確認が必須）。
+PySide6>=6.8.0.2,<6.9
+python-docx>=1.1,<2.0
+pywin32>=306; sys_platform == "win32"
+openpyxl>=3.1,<4.0
+PyMuPDF>=1.24,<2.0
+Pillow>=10.3,<11.0
+opencv-python>=4.10,<5.0

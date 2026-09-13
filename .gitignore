@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+logs/*.log
+backup/*
+!backup/.gitkeep
+*.emcproj
+*.emcproj-wal
+*.emcproj-shm
+build/
+dist/
+*.spec
+!emc_report_tool.spec
+.pytest_cache/

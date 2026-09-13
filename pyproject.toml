@@ -1,0 +1,9 @@
+[project]
+name = "emc-report-tool"
+version = "0.1.0"
+description = "EMC試験用テストレポート作成資料 作成支援アプリ"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests/unit"]
