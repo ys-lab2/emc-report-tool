@@ -27,6 +27,19 @@ def test_load_config_missing_file_returns_defaults(tmp_path, monkeypatch):
 
     assert cfg.autosave_interval_seconds == 300
     assert cfg.recent_projects == []
+    assert cfg.font_family == "Times New Roman"
+
+
+def test_font_settings_round_trip(tmp_path, monkeypatch):
+    fake_config_path = tmp_path / "config.json"
+    monkeypatch.setattr(config_module, "config_file_path", lambda: fake_config_path)
+
+    cfg = AppConfig(font_family="Meiryo", font_size=12)
+    save_config(cfg)
+    loaded = load_config()
+
+    assert loaded.font_family == "Meiryo"
+    assert loaded.font_size == 12
 
 
 def test_add_recent_project_dedupes_and_caps_length():

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QBrush, QPainter
 from PySide6.QtWidgets import QGraphicsView
 
 ZOOM_STEP = 1.15
@@ -15,6 +15,10 @@ class DiagramView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self._scale_factor = 1.0
+        # OS/アプリがダークテーマの場合でも構成図は常に白背景にする。
+        # Word/PDF/Excel出力（image_renderer.py）も白背景でレンダリングしており、
+        # 見た目を一致させる。黒背景だとGND記号等の黒い線が見えなくなる不具合の対策。
+        self.setBackgroundBrush(QBrush(Qt.GlobalColor.white))
 
     def wheelEvent(self, event) -> None:  # noqa: N802
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:

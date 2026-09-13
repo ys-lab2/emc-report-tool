@@ -23,6 +23,8 @@ class DiagramNode:
     z_order: int = 0
     label_dx: float = 0.0
     label_dy: float = 0.0
+    fill_color: str | None = None
+    stroke_color: str | None = None
 
 
 @dataclass
@@ -34,3 +36,4 @@ class DiagramEdge:
     route_points: list[tuple[float, float]] = field(default_factory=list)
     label_dx: float = 0.0
     label_dy: float = 0.0
+    line_color: str | None = None

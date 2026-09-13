@@ -38,3 +38,28 @@ class UpdateRouteCommand(QUndoCommand):
 
 def _to_tuples(points: list[QPointF]) -> list[tuple[float, float]]:
     return [(p.x(), p.y()) for p in points]
+
+
+class ChangeEdgeColorCommand(QUndoCommand):
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        edge_id: str,
+        item: CableItem,
+        old_color: str | None,
+        new_color: str | None,
+    ) -> None:
+        super().__init__("ケーブル色変更")
+        self._conn = conn
+        self._edge_id = edge_id
+        self._item = item
+        self._old_color = old_color
+        self._new_color = new_color
+
+    def redo(self) -> None:
+        self._item.set_line_color(self._new_color)
+        diagram_service.set_edge_color(self._conn, self._edge_id, self._new_color)
+
+    def undo(self) -> None:
+        self._item.set_line_color(self._old_color)
+        diagram_service.set_edge_color(self._conn, self._edge_id, self._old_color)

@@ -7,6 +7,8 @@ from pathlib import Path
 APP_DIR_NAME = "EmcReportTool"
 DEFAULT_AUTOSAVE_INTERVAL_SECONDS = 300
 DEFAULT_BACKUP_GENERATIONS = 5
+DEFAULT_FONT_FAMILY = "Times New Roman"
+DEFAULT_FONT_SIZE = 10
 MAX_RECENT_PROJECTS = 10
 
 
@@ -26,6 +28,8 @@ class AppConfig:
     autosave_interval_seconds: int = DEFAULT_AUTOSAVE_INTERVAL_SECONDS
     backup_generations: int = DEFAULT_BACKUP_GENERATIONS
     recent_projects: list[str] = field(default_factory=list)
+    font_family: str = DEFAULT_FONT_FAMILY
+    font_size: int = DEFAULT_FONT_SIZE
 
     def add_recent_project(self, project_path: str) -> None:
         paths = [p for p in self.recent_projects if p != project_path]
@@ -47,6 +51,8 @@ def load_config() -> AppConfig:
         ),
         backup_generations=data.get("backup_generations", DEFAULT_BACKUP_GENERATIONS),
         recent_projects=data.get("recent_projects", []),
+        font_family=data.get("font_family", DEFAULT_FONT_FAMILY),
+        font_size=data.get("font_size", DEFAULT_FONT_SIZE),
     )
 
 

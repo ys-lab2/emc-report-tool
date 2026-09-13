@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QPen
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsObject, QMenu
+from PySide6.QtGui import QBrush, QColor, QPen
+from PySide6.QtWidgets import QApplication, QColorDialog, QGraphicsItem, QGraphicsObject, QMenu
 
 from diagram.items.base_node_item import NodeItemBase
 
@@ -12,6 +12,7 @@ LABEL_MARGIN = 60.0
 POINT_HIT_RADIUS = 9.0
 SEGMENT_HIT_DISTANCE = 7.0
 POINT_HANDLE_SIZE = 7.0
+DEFAULT_LINE_COLOR = QColor(Qt.GlobalColor.darkGray)
 
 
 class CableItem(QGraphicsObject):
@@ -20,6 +21,7 @@ class CableItem(QGraphicsObject):
     曲線（ベジェ曲線等）は採用しない。中間点は右クリックで追加・削除、ドラッグで移動できる。"""
 
     route_changed = Signal(str, object, object)  # edge_id, old_points(list[QPointF]), new_points(list[QPointF])
+    color_changed = Signal(str, object, object)  # edge_id, old_color(str|None), new_color(str|None)
 
     def __init__(
         self,
@@ -28,6 +30,7 @@ class CableItem(QGraphicsObject):
         to_item: NodeItemBase,
         label_lines: list[str],
         route_points: list[QPointF] | None = None,
+        line_color: str | None = None,
     ) -> None:
         super().__init__()
         self.edge_id = edge_id
@@ -35,6 +38,7 @@ class CableItem(QGraphicsObject):
         self.to_item = to_item
         self.label_lines = label_lines
         self.route_points: list[QPointF] = list(route_points) if route_points else []
+        self.line_color: str | None = line_color
         self.setZValue(-1)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.setAcceptedMouseButtons(Qt.MouseButton.LeftButton | Qt.MouseButton.RightButton)
@@ -44,6 +48,13 @@ class CableItem(QGraphicsObject):
 
         from_item.attach_edge(self)
         to_item.attach_edge(self)
+
+    def effective_line_color(self) -> QColor:
+        return QColor(self.line_color) if self.line_color else QColor(DEFAULT_LINE_COLOR)
+
+    def set_line_color(self, color: str | None) -> None:
+        self.line_color = color
+        self.update()
 
     def _anchor(self, item: NodeItemBase) -> QPointF:
         return item.mapToScene(item.boundingRect().center())
@@ -61,7 +72,7 @@ class CableItem(QGraphicsObject):
     def paint(self, painter, option, widget=None) -> None:  # noqa: N802
         path = self.full_path()
 
-        pen = QPen(Qt.GlobalColor.yellow if self.isSelected() else Qt.GlobalColor.darkGray, 2)
+        pen = QPen(Qt.GlobalColor.yellow if self.isSelected() else self.effective_line_color(), 2)
         painter.setPen(pen)
         for i in range(len(path) - 1):
             painter.drawLine(QLineF(path[i], path[i + 1]))
@@ -80,6 +91,9 @@ class CableItem(QGraphicsObject):
                 )
 
         mid = self._label_anchor(path)
+        app = QApplication.instance()
+        if app is not None:
+            painter.setFont(app.font())
         painter.setPen(QPen(Qt.GlobalColor.black))
         for i, line in enumerate(self.label_lines):
             painter.drawText(mid + QPointF(4, i * 14 - 4), line)
@@ -158,13 +172,20 @@ class CableItem(QGraphicsObject):
         point_index = self._point_index_at(scene_pos)
 
         menu = QMenu()
+        remove_action = add_action = None
         if point_index is not None:
             remove_action = menu.addAction("この中間点を削除")
         else:
             insert_index = self._segment_insert_index_at(scene_pos)
             add_action = menu.addAction("ここに中間点を追加（折れ線にする）") if insert_index is not None else None
 
+        menu.addSeparator()
+        color_action = menu.addAction("線の色を変更...")
+        reset_color_action = menu.addAction("線の色をリセット")
+
         chosen = menu.exec(event.screenPos())
+        if chosen is None:
+            return
 
         if point_index is not None and chosen is remove_action:
             old_route = list(self.route_points)
@@ -172,14 +193,23 @@ class CableItem(QGraphicsObject):
             del new_route[point_index]
             self.set_route_points(new_route)
             self.route_changed.emit(self.edge_id, old_route, new_route)
-        elif point_index is None:
+        elif point_index is None and add_action is not None and chosen is add_action:
             insert_index = self._segment_insert_index_at(scene_pos)
-            if insert_index is not None and chosen is add_action:
-                old_route = list(self.route_points)
-                new_route = list(self.route_points)
-                new_route.insert(insert_index, scene_pos)
-                self.set_route_points(new_route)
-                self.route_changed.emit(self.edge_id, old_route, new_route)
+            old_route = list(self.route_points)
+            new_route = list(self.route_points)
+            new_route.insert(insert_index, scene_pos)
+            self.set_route_points(new_route)
+            self.route_changed.emit(self.edge_id, old_route, new_route)
+        elif chosen is color_action:
+            color = QColorDialog.getColor(self.effective_line_color(), None, "線の色を選択")
+            if color.isValid():
+                old_color = self.line_color
+                self.set_line_color(color.name())
+                self.color_changed.emit(self.edge_id, old_color, self.line_color)
+        elif chosen is reset_color_action:
+            old_color = self.line_color
+            self.set_line_color(None)
+            self.color_changed.emit(self.edge_id, old_color, None)
 
 
 def _distance_to_segment(point: QPointF, seg_start: QPointF, seg_end: QPointF) -> float:

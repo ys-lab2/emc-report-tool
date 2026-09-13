@@ -8,7 +8,13 @@ from models.diagram import DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, DiagramEdge,
 from models.equipment import Equipment
 from models.ground_connection import GroundConnection
 from models.power_source import PowerSource
-from repositories import cable_repository, diagram_repository, equipment_repository
+from repositories import (
+    cable_repository,
+    diagram_repository,
+    equipment_repository,
+    ground_connection_repository,
+    power_source_repository,
+)
 
 
 CHILD_NODE_WIDTH = 70.0
@@ -164,6 +170,25 @@ def move_node(conn: sqlite3.Connection, node_id: str, x: float, y: float) -> Non
     diagram_repository.update_node(conn, node)
 
 
+def set_node_colors(
+    conn: sqlite3.Connection, node_id: str, fill_color: str | None, stroke_color: str | None
+) -> None:
+    node = diagram_repository.get_node(conn, node_id)
+    if node is None:
+        return
+    node.fill_color = fill_color
+    node.stroke_color = stroke_color
+    diagram_repository.update_node(conn, node)
+
+
+def set_edge_color(conn: sqlite3.Connection, edge_id: str, line_color: str | None) -> None:
+    edge = diagram_repository.get_edge(conn, edge_id)
+    if edge is None:
+        return
+    edge.line_color = line_color
+    diagram_repository.update_edge(conn, edge)
+
+
 def update_edge_route(conn: sqlite3.Connection, edge_id: str, route_points: list[tuple[float, float]]) -> None:
     """ケーブル線の中間点（折れ線ルート）を更新する。他図形との重なりを避けたい場合に
     直線を複数組み合わせて迂回させるための機能（30.節）。曲線は採用しない。"""
@@ -213,6 +238,8 @@ def build_diagram_view(
 ) -> tuple[list[DiagramNodeView], list[DiagramEdgeView]]:
     nodes = diagram_repository.list_nodes_by_project(conn, project_id)
     equipments = {e.equipment_id: e for e in equipment_repository.list_by_project(conn, project_id)}
+    power_sources = {p.power_source_id: p for p in power_source_repository.list_by_project(conn, project_id)}
+    grounds = {g.ground_connection_id: g for g in ground_connection_repository.list_by_project(conn, project_id)}
 
     node_views: list[DiagramNodeView] = []
     for node in nodes:
@@ -223,9 +250,17 @@ def build_diagram_view(
             label_lines = [equipment.display_id, equipment.description or equipment.model_name]
             node_views.append(DiagramNodeView(node=node, label_lines=label_lines, shape="rect"))
         elif node.ref_type == "PowerSource":
-            node_views.append(DiagramNodeView(node=node, label_lines=[node.ref_id[:4]], shape="ellipse"))
+            power = power_sources.get(node.ref_id)
+            if power is None:
+                continue
+            label_lines = [power.label] if power.label else [power.kind]
+            node_views.append(DiagramNodeView(node=node, label_lines=label_lines, shape="ellipse"))
         elif node.ref_type == "GroundConnection":
-            node_views.append(DiagramNodeView(node=node, label_lines=[], shape="ground"))
+            ground = grounds.get(node.ref_id)
+            if ground is None:
+                continue
+            label_lines = [ground.label] if ground.label else [ground.kind]
+            node_views.append(DiagramNodeView(node=node, label_lines=label_lines, shape="ground"))
 
     cables = cable_repository.list_by_project(conn, project_id)
     edges = diagram_repository.list_edges_by_project(conn, project_id)

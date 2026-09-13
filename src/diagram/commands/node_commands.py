@@ -34,6 +34,31 @@ class MoveNodeCommand(QUndoCommand):
         diagram_service.move_node(self._conn, self._node_id, *self._old_pos)
 
 
+class ChangeNodeColorCommand(QUndoCommand):
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        node_id: str,
+        item: NodeItemBase,
+        old_colors: tuple[str | None, str | None],
+        new_colors: tuple[str | None, str | None],
+    ) -> None:
+        super().__init__("Node色変更")
+        self._conn = conn
+        self._node_id = node_id
+        self._item = item
+        self._old_colors = old_colors
+        self._new_colors = new_colors
+
+    def redo(self) -> None:
+        self._item.set_colors(*self._new_colors)
+        diagram_service.set_node_colors(self._conn, self._node_id, *self._new_colors)
+
+    def undo(self) -> None:
+        self._item.set_colors(*self._old_colors)
+        diagram_service.set_node_colors(self._conn, self._node_id, *self._old_colors)
+
+
 class ResizeNodeCommand(QUndoCommand):
     def __init__(
         self,

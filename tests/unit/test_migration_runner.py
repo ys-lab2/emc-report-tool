@@ -36,7 +36,7 @@ def test_apply_migrations_creates_all_tables():
     conn.row_factory = sqlite3.Row
 
     applied = apply_migrations(conn)
-    assert applied == [1]
+    assert applied == [1, 2]
 
     rows = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
@@ -53,7 +53,7 @@ def test_apply_migrations_is_idempotent():
     first = apply_migrations(conn)
     second = apply_migrations(conn)
 
-    assert first == [1]
+    assert first == [1, 2]
     assert second == []
 
 

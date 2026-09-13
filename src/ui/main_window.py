@@ -4,8 +4,11 @@ import logging
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
+    QFontDialog,
     QListWidget,
     QMainWindow,
     QMessageBox,
@@ -147,6 +150,26 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         exit_action = file_menu.addAction("終了")
         exit_action.triggered.connect(self.close)
+
+        view_menu = menu_bar.addMenu("表示(&V)")
+        font_action = view_menu.addAction("フォントを変更...")
+        font_action.triggered.connect(self._on_change_font)
+
+    def _on_change_font(self) -> None:
+        current_font = QFont(self._config.font_family, self._config.font_size)
+        font, ok = QFontDialog.getFont(current_font, self, "フォントを選択")
+        if not ok:
+            return
+
+        self._config.font_family = font.family()
+        self._config.font_size = font.pointSize() if font.pointSize() > 0 else self._config.font_size
+        config_module.save_config(self._config)
+
+        QApplication.instance().setFont(QFont(self._config.font_family, self._config.font_size))
+
+        for page in self.pages.values():
+            if hasattr(page, "refresh"):
+                page.refresh()
 
     def _rebuild_recent_menu(self) -> None:
         self.recent_menu.clear()

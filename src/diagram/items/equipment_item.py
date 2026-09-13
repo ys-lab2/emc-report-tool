@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPen
+from PySide6.QtWidgets import QApplication
 
 from diagram.items.base_node_item import NodeItemBase
 
@@ -13,8 +14,16 @@ MIN_HEIGHT = 40.0
 class EquipmentItem(NodeItemBase):
     resize_finished = Signal(str, float, float, float, float)  # node_id, old_w, old_h, new_w, new_h
 
-    def __init__(self, node_id: str, width: float, height: float, label_lines: list[str]) -> None:
-        super().__init__(node_id, width, height)
+    def __init__(
+        self,
+        node_id: str,
+        width: float,
+        height: float,
+        label_lines: list[str],
+        fill_color: str | None = None,
+        stroke_color: str | None = None,
+    ) -> None:
+        super().__init__(node_id, width, height, fill_color, stroke_color)
         self.label_lines = label_lines
         self._resizing = False
         self._resize_start_size = (width, height)
@@ -25,12 +34,15 @@ class EquipmentItem(NodeItemBase):
 
     def paint(self, painter, option, widget=None) -> None:  # noqa: N802
         rect = self.boundingRect()
-        pen = QPen(Qt.GlobalColor.black, 2 if self.isSelected() else 1)
+        pen = QPen(self.effective_stroke_color(), 2 if self.isSelected() else 1)
         painter.setPen(pen)
-        painter.setBrush(QBrush(QColor("#eaf1fb")))
+        painter.setBrush(QBrush(self.effective_fill_color()))
         painter.drawRect(rect)
 
-        painter.setPen(QPen(Qt.GlobalColor.black))
+        app = QApplication.instance()
+        if app is not None:
+            painter.setFont(app.font())
+        painter.setPen(QPen(self.effective_stroke_color()))
         for i, line in enumerate(self.label_lines):
             painter.drawText(
                 QRectF(4, 4 + i * 16, self._width - 8, 16),

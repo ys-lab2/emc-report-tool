@@ -40,8 +40,9 @@ def add_node(conn: sqlite3.Connection, node: DiagramNode) -> DiagramNode:
         """
         INSERT INTO diagram_nodes
             (node_id, project_id, ref_type, ref_id, parent_node_id, x, y,
-             relative_x, relative_y, width, height, z_order, label_dx, label_dy)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             relative_x, relative_y, width, height, z_order, label_dx, label_dy,
+             fill_color, stroke_color)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             node.node_id,
@@ -58,6 +59,8 @@ def add_node(conn: sqlite3.Connection, node: DiagramNode) -> DiagramNode:
             node.z_order,
             node.label_dx,
             node.label_dy,
+            node.fill_color,
+            node.stroke_color,
         ),
     )
     conn.commit()
@@ -69,7 +72,8 @@ def update_node(conn: sqlite3.Connection, node: DiagramNode) -> None:
         """
         UPDATE diagram_nodes SET
             parent_node_id = ?, x = ?, y = ?, relative_x = ?, relative_y = ?,
-            width = ?, height = ?, z_order = ?, label_dx = ?, label_dy = ?
+            width = ?, height = ?, z_order = ?, label_dx = ?, label_dy = ?,
+            fill_color = ?, stroke_color = ?
         WHERE node_id = ?
         """,
         (
@@ -83,6 +87,8 @@ def update_node(conn: sqlite3.Connection, node: DiagramNode) -> None:
             node.z_order,
             node.label_dx,
             node.label_dy,
+            node.fill_color,
+            node.stroke_color,
             node.node_id,
         ),
     )
@@ -118,6 +124,8 @@ def _row_to_node(row: sqlite3.Row) -> DiagramNode:
         z_order=row["z_order"],
         label_dx=row["label_dx"],
         label_dy=row["label_dy"],
+        fill_color=row["fill_color"],
+        stroke_color=row["stroke_color"],
     )
 
 
@@ -153,8 +161,8 @@ def add_edge(conn: sqlite3.Connection, edge: DiagramEdge) -> DiagramEdge:
         edge.edge_id = new_id()
     conn.execute(
         """
-        INSERT INTO diagram_edges (edge_id, project_id, ref_type, ref_id, route_points_json, label_dx, label_dy)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO diagram_edges (edge_id, project_id, ref_type, ref_id, route_points_json, label_dx, label_dy, line_color)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             edge.edge_id,
@@ -164,6 +172,7 @@ def add_edge(conn: sqlite3.Connection, edge: DiagramEdge) -> DiagramEdge:
             json.dumps(edge.route_points),
             edge.label_dx,
             edge.label_dy,
+            edge.line_color,
         ),
     )
     conn.commit()
@@ -172,8 +181,8 @@ def add_edge(conn: sqlite3.Connection, edge: DiagramEdge) -> DiagramEdge:
 
 def update_edge(conn: sqlite3.Connection, edge: DiagramEdge) -> None:
     conn.execute(
-        "UPDATE diagram_edges SET route_points_json = ?, label_dx = ?, label_dy = ? WHERE edge_id = ?",
-        (json.dumps(edge.route_points), edge.label_dx, edge.label_dy, edge.edge_id),
+        "UPDATE diagram_edges SET route_points_json = ?, label_dx = ?, label_dy = ?, line_color = ? WHERE edge_id = ?",
+        (json.dumps(edge.route_points), edge.label_dx, edge.label_dy, edge.line_color, edge.edge_id),
     )
     conn.commit()
 
@@ -197,4 +206,5 @@ def _row_to_edge(row: sqlite3.Row) -> DiagramEdge:
         route_points=points,
         label_dx=row["label_dx"],
         label_dy=row["label_dy"],
+        line_color=row["line_color"],
     )

@@ -6,8 +6,8 @@ from PySide6.QtCore import QPointF
 from PySide6.QtGui import QUndoStack
 from PySide6.QtWidgets import QGraphicsScene
 
-from diagram.commands.edge_commands import UpdateRouteCommand
-from diagram.commands.node_commands import MoveNodeCommand, ResizeNodeCommand
+from diagram.commands.edge_commands import ChangeEdgeColorCommand, UpdateRouteCommand
+from diagram.commands.node_commands import ChangeNodeColorCommand, MoveNodeCommand, ResizeNodeCommand
 from diagram.items.base_node_item import NodeItemBase
 from diagram.items.cable_item import CableItem
 from diagram.items.equipment_item import EquipmentItem
@@ -57,8 +57,16 @@ class DiagramScene(QGraphicsScene):
             if from_item is None or to_item is None:
                 continue
             route_points = [QPointF(x, y) for x, y in edge_view.edge.route_points]
-            edge_item = CableItem(edge_view.edge.edge_id, from_item, to_item, edge_view.label_lines, route_points)
+            edge_item = CableItem(
+                edge_view.edge.edge_id,
+                from_item,
+                to_item,
+                edge_view.label_lines,
+                route_points,
+                edge_view.edge.line_color,
+            )
             edge_item.route_changed.connect(self._on_route_changed)
+            edge_item.color_changed.connect(self._on_edge_color_changed)
             self.addItem(edge_item)
             self._items_by_edge_id[edge_view.edge.edge_id] = edge_item
 
@@ -66,14 +74,21 @@ class DiagramScene(QGraphicsScene):
         node = node_view.node
 
         if node_view.shape == "rect":
-            item: NodeItemBase = EquipmentItem(node.node_id, node.width, node.height, node_view.label_lines)
+            item: NodeItemBase = EquipmentItem(
+                node.node_id, node.width, node.height, node_view.label_lines, node.fill_color, node.stroke_color
+            )
             item.resize_finished.connect(self._on_resize_finished)
         elif node_view.shape == "ellipse":
-            item = PowerSourceItem(node.node_id, node.width, node.height, node_view.label_lines)
+            item = PowerSourceItem(
+                node.node_id, node.width, node.height, node_view.label_lines, node.fill_color, node.stroke_color
+            )
         else:
-            item = GroundItem(node.node_id, node.width, node.height)
+            item = GroundItem(
+                node.node_id, node.width, node.height, node_view.label_lines, node.fill_color, node.stroke_color
+            )
 
         item.move_finished.connect(self._on_move_finished)
+        item.colors_changed.connect(self._on_node_colors_changed)
 
         if parent_item is not None:
             item.setParentItem(parent_item)
@@ -100,4 +115,16 @@ class DiagramScene(QGraphicsScene):
     def _on_route_changed(self, edge_id: str, old_points: list, new_points: list) -> None:
         item = self._items_by_edge_id[edge_id]
         command = UpdateRouteCommand(self._conn, edge_id, item, old_points, new_points)
+        self.undo_stack.push(command)
+
+    def _on_node_colors_changed(
+        self, node_id: str, old_fill: str | None, old_stroke: str | None, new_fill: str | None, new_stroke: str | None
+    ) -> None:
+        item = self._items_by_node_id[node_id]
+        command = ChangeNodeColorCommand(self._conn, node_id, item, (old_fill, old_stroke), (new_fill, new_stroke))
+        self.undo_stack.push(command)
+
+    def _on_edge_color_changed(self, edge_id: str, old_color: str | None, new_color: str | None) -> None:
+        item = self._items_by_edge_id[edge_id]
+        command = ChangeEdgeColorCommand(self._conn, edge_id, item, old_color, new_color)
         self.undo_stack.push(command)
