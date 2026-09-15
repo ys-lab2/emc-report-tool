@@ -21,6 +21,9 @@ class Equipment:
     notes: str = ""
     placement_type: str = "standalone"
     parent_equipment_id: str | None = None
+    width_mm: float | None = None
+    depth_mm: float | None = None
+    height_mm: float | None = None
     sort_order: int = 0
     created_at: str = ""
     updated_at: str = ""

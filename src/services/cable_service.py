@@ -3,19 +3,31 @@ from __future__ import annotations
 import sqlite3
 
 from models.cable import Cable
-from repositories import cable_repository, equipment_repository
+from repositories import cable_repository, equipment_repository, ground_connection_repository, power_source_repository
 from services import diagram_service
 
 
 class InvalidEquipmentReferenceError(Exception):
-    """存在しないEquipmentへのFrom/To参照が指定された場合の例外（58.節）。"""
+    """存在しない接続先（Equipment/PowerSource/GroundConnection）が指定された場合の例外（58.節）。"""
+
+
+def _ref_exists(conn: sqlite3.Connection, ref_type: str, ref_id: str) -> bool:
+    if not ref_id:
+        return False
+    if ref_type == "Equipment":
+        return equipment_repository.get(conn, ref_id) is not None
+    if ref_type == "PowerSource":
+        return power_source_repository.get(conn, ref_id) is not None
+    if ref_type == "GroundConnection":
+        return ground_connection_repository.get(conn, ref_id) is not None
+    return False
 
 
 def _validate_endpoints(conn: sqlite3.Connection, cable: Cable) -> None:
-    if not cable.from_equipment_id or equipment_repository.get(conn, cable.from_equipment_id) is None:
-        raise InvalidEquipmentReferenceError("From機器が存在しません。")
-    if not cable.to_equipment_id or equipment_repository.get(conn, cable.to_equipment_id) is None:
-        raise InvalidEquipmentReferenceError("To機器が存在しません。")
+    if not _ref_exists(conn, cable.from_ref_type, cable.from_ref_id):
+        raise InvalidEquipmentReferenceError("From接続先が存在しません。")
+    if not _ref_exists(conn, cable.to_ref_type, cable.to_ref_id):
+        raise InvalidEquipmentReferenceError("To接続先が存在しません。")
 
 
 def create_cable(conn: sqlite3.Connection, cable: Cable) -> Cable:

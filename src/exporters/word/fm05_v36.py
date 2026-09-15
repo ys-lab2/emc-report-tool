@@ -14,6 +14,7 @@ from exporters.word.base import (
     copy_template,
     ensure_row_capacity,
     insert_picture_replacing_cell,
+    replace_cell_with_table,
     set_cell_text,
     set_checkbox,
     word_application,
@@ -23,9 +24,11 @@ from models.equipment import Equipment
 from models.eut_overview import EutOverview
 from models.report_standard import ReportStandard
 from repositories import (
+    applicant_repository,
     cable_repository,
     equipment_repository,
     eut_overview_repository,
+    operation_mode_repository,
     report_standard_repository,
 )
 from services.project_service import ProjectHandle
@@ -36,10 +39,25 @@ TEMPLATE_VERSION = "3-6"
 # --- Table(1): プロジェクト情報 ---
 PROJECT_TABLE = 1
 
-# --- Table(3): レポート作成規格 ---
+# --- Table(2): (注) 欄。Projectの備考をここに追記する（他に適切な備考欄が見当たらないための best-effort） ---
+NOTE_TABLE = 2
+NOTE_ROW, NOTE_COL = 1, 2
+
+# --- Table(3): レポート作成規格 + 申請者情報 ---
 STANDARDS_TABLE = 3
 STANDARDS_START_ROW = 3
 STANDARDS_CAPACITY = 8
+
+# 申請者情報ブロック（best-effort。空欄テンプレートからは断定できないため、
+# 和文=R11(会社名)/R12(住所)、英文=R13(会社名)/R14(住所) と仮定している。
+# 実際の出力を確認し、ズレていれば要調整）。
+APPLICANT_ROWS = {
+    "company_name_jp": 11,
+    "address_jp": 12,
+    "company_name_en": 13,
+    "address_en": 14,
+}
+APPLICANT_COL = 3
 
 # --- Table(4): 装置概要 ---
 EUT_TABLE = 4
@@ -62,6 +80,8 @@ EUT_ROWS = {
     "date_sample_received": 23,
     "test_engineer": 24,
 }
+OPERATION_MODE_NAME_CELL = (20, 4)
+OPERATION_MODE_DESCRIPTION_CELL = (21, 4)
 
 CHECKBOX_INDEX = {
     "mass_production": 1,
@@ -131,7 +151,9 @@ def export(
         try:
             _write_project_info(doc, project)
             _write_report_standards(conn, doc, project.project_id)
+            _write_applicant(conn, doc, project.project_id)
             _write_eut_overview(conn, doc, project.project_id)
+            _write_operation_mode(conn, doc, project.project_id)
             _write_equipment_table(conn, doc, project.project_id)
             _write_cable_table(conn, doc, project.project_id)
             if diagram_image_path is not None:
@@ -148,6 +170,10 @@ def _write_project_info(doc, project) -> None:
     set_cell_text(table, 1, 2, project.project_no)
     set_cell_text(table, 2, 2, project.test_plan_no)
     set_cell_text(table, 3, 2, project.measurement_period)
+
+    if project.notes:
+        note_table = doc.Tables(NOTE_TABLE)
+        append_cell_text(note_table, NOTE_ROW, NOTE_COL, project.notes)
 
 
 def _write_report_standards(conn, doc, project_id: str) -> None:
@@ -167,6 +193,38 @@ def _write_report_standards(conn, doc, project_id: str) -> None:
         set_cell_text(table, row, 6, standard.submission_media)
 
 
+def _write_applicant(conn, doc, project_id: str) -> None:
+    applicant = applicant_repository.get_by_project(conn, project_id)
+    if applicant is None:
+        return
+
+    table = doc.Tables(STANDARDS_TABLE)
+    set_cell_text(table, APPLICANT_ROWS["company_name_jp"], APPLICANT_COL, applicant.company_name_jp)
+    set_cell_text(table, APPLICANT_ROWS["address_jp"], APPLICANT_COL, applicant.address_jp)
+    set_cell_text(table, APPLICANT_ROWS["company_name_en"], APPLICANT_COL, applicant.company_name_en)
+    set_cell_text(table, APPLICANT_ROWS["address_en"], APPLICANT_COL, applicant.address_en)
+
+
+def _write_operation_mode(conn, doc, project_id: str) -> None:
+    modes = operation_mode_repository.list_by_project(conn, project_id)
+    if not modes:
+        return
+
+    table = doc.Tables(EUT_TABLE)
+    name_row, name_col = OPERATION_MODE_NAME_CELL
+    desc_row, desc_col = OPERATION_MODE_DESCRIPTION_CELL
+
+    set_cell_text(table, name_row, name_col, " / ".join(m.mode_name for m in modes if m.mode_name))
+
+    description_lines = []
+    for mode in modes:
+        if mode.mode_name and mode.description:
+            description_lines.append(f"{mode.mode_name}: {mode.description}")
+        elif mode.description:
+            description_lines.append(mode.description)
+    set_cell_text(table, desc_row, desc_col, "\n".join(description_lines))
+
+
 def _write_eut_overview(conn, doc, project_id: str) -> None:
     overview = eut_overview_repository.get_by_project(conn, project_id)
     if overview is None:
@@ -182,15 +240,8 @@ def _write_eut_overview(conn, doc, project_id: str) -> None:
     set_checkbox(doc, CHECKBOX_INDEX["mass_production"], overview.sample_type == "mass_production")
     set_checkbox(doc, CHECKBOX_INDEX["pre_production"], overview.sample_type == "pre_production")
 
-    if overview.width_mm or overview.depth_mm or overview.height_mm:
-        dimension_text = (
-            f"Width:{_fmt_num(overview.width_mm)}mm  "
-            f"Depth:{_fmt_num(overview.depth_mm)}mm  "
-            f"Height:{_fmt_num(overview.height_mm)}mm"
-        )
-        set_cell_text(table, EUT_ROWS["dimension"], 3, dimension_text)
-
-    append_cell_text(table, EUT_ROWS["max_frequency"], 3, overview.max_frequency)
+    _write_dimension_table(doc, table, equipment_repository.list_by_project(conn, project_id))
+    _write_frequency_table(conn, doc, table, overview)
     set_cell_text(table, EUT_ROWS["wireless_frequency"], 3, overview.wireless_frequency)
 
     _write_power_supply_checkboxes(doc, overview)
@@ -205,6 +256,54 @@ def _write_eut_overview(conn, doc, project_id: str) -> None:
     set_cell_text(table, EUT_ROWS["option"], 3, overview.option)
     set_cell_text(table, EUT_ROWS["date_sample_received"], 3, overview.date_sample_received)
     set_cell_text(table, EUT_ROWS["test_engineer"], 3, overview.test_engineer)
+
+
+def _write_dimension_table(doc, table, all_equipment: list[Equipment]) -> None:
+    """F) Dimension。元のセル内の入れ子表（Width:/Depth:/Height:の3セル構成）を
+    完全に削除し、EUT毎の寸法を新しい入れ子表として作り直す
+    （word-template-analysis.md 9A.節：セルを丸ごとクリアして新規Tables.Addする方針）。"""
+    eut_list = sorted(
+        (e for e in all_equipment if e.category == "EUT"),
+        key=lambda e: (e.sort_order, e.display_id),
+    )
+    row_count = max(len(eut_list), 1) + 1  # ヘッダー行 + EUT行
+
+    nested = replace_cell_with_table(doc, table, EUT_ROWS["dimension"], 3, row_count, 4)
+    nested.Cell(1, 2).Range.Text = "Width"
+    nested.Cell(1, 3).Range.Text = "Depth"
+    nested.Cell(1, 4).Range.Text = "Height"
+
+    if not eut_list:
+        nested.Cell(2, 1).Range.Text = "EUT1"
+        return
+
+    for i, equipment in enumerate(eut_list):
+        row = i + 2
+        nested.Cell(row, 1).Range.Text = f"EUT{i + 1}"
+        nested.Cell(row, 2).Range.Text = _fmt_num(equipment.width_mm)
+        nested.Cell(row, 3).Range.Text = _fmt_num(equipment.depth_mm)
+        nested.Cell(row, 4).Range.Text = _fmt_num(equipment.height_mm)
+
+
+def _write_frequency_table(conn, doc, table, overview: EutOverview) -> None:
+    """G) High Frequency Used。元のセル内の入れ子表を完全に削除し、最大周波数と
+    周波数リストを新しい入れ子表として作り直す。"""
+    frequencies = (
+        eut_overview_repository.list_frequencies(conn, overview.eut_overview_id)
+        if overview.eut_overview_id
+        else []
+    )
+
+    nested = replace_cell_with_table(doc, table, EUT_ROWS["max_frequency"], 3, 2 + len(frequencies), 2)
+    nested.Cell(1, 1).Range.Text = "Frequency"
+    nested.Cell(1, 2).Range.Text = "Usage"
+    nested.Cell(2, 1).Range.Text = overview.max_frequency
+    nested.Cell(2, 2).Range.Text = "（最大周波数）"
+
+    for i, freq in enumerate(frequencies):
+        row = i + 3
+        nested.Cell(row, 1).Range.Text = freq.value
+        nested.Cell(row, 2).Range.Text = freq.usage_note
 
 
 def _write_power_supply_checkboxes(doc, overview: EutOverview) -> None:

@@ -33,19 +33,21 @@ def add(conn: sqlite3.Connection, cable: Cable) -> Cable:
     conn.execute(
         """
         INSERT INTO cables
-            (cable_id, project_id, cable_no, from_equipment_id, from_port,
-             to_equipment_id, to_port, cable_type, length, length_unit,
+            (cable_id, project_id, cable_no, from_ref_type, from_ref_id, from_port,
+             to_ref_type, to_ref_id, to_port, cable_type, length, length_unit,
              shielded, maximum_length, outdoor_connection, notes, sort_order,
              created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             cable.cable_id,
             cable.project_id,
             cable.cable_no,
-            cable.from_equipment_id,
+            cable.from_ref_type,
+            cable.from_ref_id,
             cable.from_port,
-            cable.to_equipment_id,
+            cable.to_ref_type,
+            cable.to_ref_id,
             cable.to_port,
             cable.cable_type,
             cable.length,
@@ -68,17 +70,19 @@ def update(conn: sqlite3.Connection, cable: Cable) -> None:
     conn.execute(
         """
         UPDATE cables SET
-            cable_no = ?, from_equipment_id = ?, from_port = ?, to_equipment_id = ?,
-            to_port = ?, cable_type = ?, length = ?, length_unit = ?, shielded = ?,
-            maximum_length = ?, outdoor_connection = ?, notes = ?, sort_order = ?,
-            updated_at = ?
+            cable_no = ?, from_ref_type = ?, from_ref_id = ?, from_port = ?,
+            to_ref_type = ?, to_ref_id = ?, to_port = ?, cable_type = ?, length = ?,
+            length_unit = ?, shielded = ?, maximum_length = ?, outdoor_connection = ?,
+            notes = ?, sort_order = ?, updated_at = ?
         WHERE cable_id = ?
         """,
         (
             cable.cable_no,
-            cable.from_equipment_id,
+            cable.from_ref_type,
+            cable.from_ref_id,
             cable.from_port,
-            cable.to_equipment_id,
+            cable.to_ref_type,
+            cable.to_ref_id,
             cable.to_port,
             cable.cable_type,
             cable.length,
@@ -100,6 +104,20 @@ def delete(conn: sqlite3.Connection, cable_id: str) -> None:
     conn.commit()
 
 
+def delete_by_ref(conn: sqlite3.Connection, ref_type: str, ref_id: str) -> None:
+    """指定した機器/電源/GNDが片端になっているケーブルを一括削除する
+    （from/toの多態的参照にはDB外部キー制約が使えないため、Service層で明示的にカスケードする）。"""
+    conn.execute(
+        """
+        DELETE FROM cables
+        WHERE (from_ref_type = ? AND from_ref_id = ?)
+           OR (to_ref_type = ? AND to_ref_id = ?)
+        """,
+        (ref_type, ref_id, ref_type, ref_id),
+    )
+    conn.commit()
+
+
 def next_cable_no(conn: sqlite3.Connection, project_id: str) -> int:
     row = conn.execute(
         "SELECT MAX(cable_no) AS max_no FROM cables WHERE project_id = ?",
@@ -113,9 +131,11 @@ def _row_to_model(row: sqlite3.Row) -> Cable:
         cable_id=row["cable_id"],
         project_id=row["project_id"],
         cable_no=row["cable_no"],
-        from_equipment_id=row["from_equipment_id"],
+        from_ref_type=row["from_ref_type"],
+        from_ref_id=row["from_ref_id"],
         from_port=row["from_port"] or "",
-        to_equipment_id=row["to_equipment_id"],
+        to_ref_type=row["to_ref_type"],
+        to_ref_id=row["to_ref_id"],
         to_port=row["to_port"] or "",
         cable_type=row["cable_type"] or "",
         length=row["length"],

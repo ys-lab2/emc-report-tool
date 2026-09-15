@@ -50,8 +50,8 @@ def test_main_window_opens_project_and_navigates(qapp, tmp_path, monkeypatch):
         Cable(
             cable_id="",
             project_id=project_id,
-            from_equipment_id=equipment_a.equipment_id,
-            to_equipment_id=equipment_b.equipment_id,
+            from_ref_id=equipment_a.equipment_id,
+            to_ref_id=equipment_b.equipment_id,
             cable_type="USB",
         ),
     )

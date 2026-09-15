@@ -4,7 +4,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from models.equipment import Equipment
-from repositories import equipment_repository
+from repositories import cable_repository, equipment_repository
 from services import diagram_service
 
 
@@ -84,7 +84,8 @@ def delete_equipment(
 ) -> None:
     """機器を削除する。cascade_children=Trueなら子機器も再帰的に削除し、
     Falseなら子機器を独立機器に変更してから削除する（57.節）。
-    参照しているCableはDB外部キーのON DELETE CASCADEにより自動的に削除される。"""
+    Cableのfrom/toはEquipment/PowerSource/GroundConnectionへの多態的参照でDB外部キーが
+    使えないため、参照しているCableをここで明示的にカスケード削除する。"""
     equipment = equipment_repository.get(conn, equipment_id)
     if equipment is None:
         return
@@ -96,6 +97,13 @@ def delete_equipment(
                 delete_equipment(conn, child.equipment_id, cascade_children=True)
         else:
             equipment_repository.clear_parent_for_children(conn, equipment_id)
+
+    for cable in cable_repository.list_by_project(conn, equipment.project_id):
+        if (cable.from_ref_type == "Equipment" and cable.from_ref_id == equipment_id) or (
+            cable.to_ref_type == "Equipment" and cable.to_ref_id == equipment_id
+        ):
+            diagram_service.delete_edge_for_ref(conn, equipment.project_id, "Cable", cable.cable_id)
+    cable_repository.delete_by_ref(conn, "Equipment", equipment_id)
 
     equipment_repository.delete(conn, equipment_id)
     diagram_service.delete_node_for_ref(conn, equipment.project_id, "Equipment", equipment_id)

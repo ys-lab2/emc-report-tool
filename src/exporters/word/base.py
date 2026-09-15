@@ -66,6 +66,29 @@ def insert_picture_replacing_cell(table, row: int, col: int, image_path: Path) -
     cell.Range.InlineShapes.AddPicture(FileName=str(image_path))
 
 
+def replace_cell_with_table(doc, table, row: int, col: int, num_rows: int, num_cols: int):
+    """セルの中身（旧テンプレートの入れ子表・プレースホルダ文字列を含む）を完全に削除し、
+    新しい入れ子表をゼロから作り直す。
+
+    このテンプレートのF)寸法・G)周波数のようなセルは、見た目上は単なるラベル付きテキストに
+    見えても実際には入れ子のWord表（1行複数列）が入っている。`cell.Range.Text = ""` では
+    入れ子表の先頭セルしか消えず、残りのセルが残留してしまうため、必ず`cell.Tables`から
+    既存の入れ子表を`Delete()`してから作り直す。
+
+    また `doc.Tables.Add(range, num_rows, num_cols)` はこの入れ子コンテキストでは
+    行数指定が無視され1行しか作られないことを実機で確認済みのため、1行×num_colsで作成した後
+    `Rows.Add()`をnum_rows-1回呼んで行数を増やす。"""
+    cell = table.Cell(row, col)
+    while cell.Tables.Count > 0:
+        cell.Tables(1).Delete()
+    cell.Range.Text = ""
+
+    nested = doc.Tables.Add(cell.Range, 1, num_cols)
+    for _ in range(num_rows - 1):
+        nested.Rows.Add()
+    return nested
+
+
 def ensure_row_capacity(table, start_row: int, fixed_capacity: int, needed_count: int) -> int:
     """機器表・ケーブル表のようにテンプレートが固定行数で用意されている表に対し、
     実際のデータ件数がそれを超える場合は行を追加する（13.節）。

@@ -42,7 +42,7 @@ def _make_project_with_equipment(tmp_path, name):
     )
     cable_service.create_cable(
         conn,
-        Cable(cable_id="", project_id=project_id, from_equipment_id=a.equipment_id, to_equipment_id=c.equipment_id, cable_type="USB"),
+        Cable(cable_id="", project_id=project_id, from_ref_id=a.equipment_id, to_ref_id=c.equipment_id, cable_type="USB"),
     )
     return handle, a, b, c
 

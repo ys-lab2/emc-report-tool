@@ -15,10 +15,10 @@ def test_create_cable_auto_numbers(conn, project):
     b = equipment_service.create_equipment(conn, make_equipment(project.project_id, "B"))
 
     c1 = cable_service.create_cable(
-        conn, Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=b.equipment_id)
+        conn, Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=b.equipment_id)
     )
     c2 = cable_service.create_cable(
-        conn, Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=b.equipment_id)
+        conn, Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=b.equipment_id)
     )
 
     assert c1.cable_no == 1
@@ -34,8 +34,8 @@ def test_create_cable_rejects_missing_equipment(conn, project):
             Cable(
                 cable_id="",
                 project_id=project.project_id,
-                from_equipment_id=a.equipment_id,
-                to_equipment_id="does-not-exist",
+                from_ref_id=a.equipment_id,
+                to_ref_id="does-not-exist",
             ),
         )
 
@@ -47,10 +47,10 @@ def test_multiple_cables_between_same_pair_allowed(conn, project):
     b = equipment_service.create_equipment(conn, make_equipment(project.project_id, "B"))
 
     cable_service.create_cable(
-        conn, Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=b.equipment_id, cable_type="USB")
+        conn, Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=b.equipment_id, cable_type="USB")
     )
     cable_service.create_cable(
-        conn, Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=b.equipment_id, cable_type="HDMI")
+        conn, Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=b.equipment_id, cable_type="HDMI")
     )
 
     cables = cable_repository.list_by_project(conn, project.project_id)
@@ -63,7 +63,7 @@ def test_delete_equipment_cascades_cable_deletion(conn, project):
     a = equipment_service.create_equipment(conn, make_equipment(project.project_id, "A"))
     b = equipment_service.create_equipment(conn, make_equipment(project.project_id, "B"))
     cable_service.create_cable(
-        conn, Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=b.equipment_id)
+        conn, Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=b.equipment_id)
     )
 
     equipment_service.delete_equipment(conn, a.equipment_id, cascade_children=False)

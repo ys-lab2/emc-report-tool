@@ -172,6 +172,14 @@ def add_frequency(conn: sqlite3.Connection, frequency: Frequency) -> Frequency:
     return frequency
 
 
+def update_frequency(conn: sqlite3.Connection, frequency: Frequency) -> None:
+    conn.execute(
+        "UPDATE frequencies SET value = ?, unit = ?, usage_note = ?, sort_order = ? WHERE frequency_id = ?",
+        (frequency.value, frequency.unit, frequency.usage_note, frequency.sort_order, frequency.frequency_id),
+    )
+    conn.commit()
+
+
 def delete_frequency(conn: sqlite3.Connection, frequency_id: str) -> None:
     conn.execute("DELETE FROM frequencies WHERE frequency_id = ?", (frequency_id,))
     conn.commit()

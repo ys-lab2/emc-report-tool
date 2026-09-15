@@ -57,7 +57,7 @@ def test_creating_cable_creates_diagram_edge(conn, project):
     a = equipment_service.create_equipment(conn, make_equipment(project.project_id, "A"))
     b = equipment_service.create_equipment(conn, make_equipment(project.project_id, "B"))
     cable = cable_service.create_cable(
-        conn, Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=b.equipment_id)
+        conn, Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=b.equipment_id)
     )
 
     edge = diagram_repository.get_edge_by_ref(conn, project.project_id, "Cable", cable.cable_id)
@@ -68,7 +68,7 @@ def test_deleting_cable_removes_diagram_edge(conn, project):
     a = equipment_service.create_equipment(conn, make_equipment(project.project_id, "A"))
     b = equipment_service.create_equipment(conn, make_equipment(project.project_id, "B"))
     cable = cable_service.create_cable(
-        conn, Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=b.equipment_id)
+        conn, Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=b.equipment_id)
     )
 
     cable_service.delete_cable(conn, cable.cable_id)
@@ -99,7 +99,7 @@ def test_inline_component_crud(conn, project):
     a = equipment_service.create_equipment(conn, make_equipment(project.project_id, "A"))
     b = equipment_service.create_equipment(conn, make_equipment(project.project_id, "B"))
     cable = cable_service.create_cable(
-        conn, Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=b.equipment_id)
+        conn, Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=b.equipment_id)
     )
 
     component = inline_component_service.add_component(

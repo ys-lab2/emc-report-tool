@@ -14,9 +14,10 @@ from diagram.layout import auto_layout
 from diagram.scene import DiagramScene
 from diagram.view import DiagramView
 from models.ground_connection import GROUND_KINDS, GroundConnection
-from models.power_source import POWER_SOURCE_KINDS, PowerSource
+from models.power_source import PowerSource
 from services import ground_connection_service, power_source_service
 from services.project_service import ProjectHandle
+from ui.dialogs.power_source_edit_dialog import PowerSourceEditDialog
 
 
 class DiagramPage(QWidget):
@@ -95,13 +96,12 @@ class DiagramPage(QWidget):
     def _on_add_power_source(self) -> None:
         if self._handle is None:
             return
-        kind, ok = QInputDialog.getItem(self, "電源を追加", "種類", list(POWER_SOURCE_KINDS), editable=False)
-        if not ok:
+        dialog = PowerSourceEditDialog(parent=self)
+        if dialog.exec() != PowerSourceEditDialog.DialogCode.Accepted:
             return
-        power_source_service.create_power_source(
-            self._handle.connection,
-            PowerSource(power_source_id="", project_id=self._handle.project.project_id, kind=kind),
-        )
+        power_source = PowerSource(power_source_id="", project_id=self._handle.project.project_id)
+        dialog.apply_to(power_source)
+        power_source_service.create_power_source(self._handle.connection, power_source)
         self.refresh()
 
     def _on_add_ground_connection(self) -> None:

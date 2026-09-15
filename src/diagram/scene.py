@@ -77,6 +77,7 @@ class DiagramScene(QGraphicsScene):
             item: NodeItemBase = EquipmentItem(
                 node.node_id, node.width, node.height, node_view.label_lines, node.fill_color, node.stroke_color
             )
+            item.clamp_to_parent = node_view.placement_type != "attached"
             item.resize_finished.connect(self._on_resize_finished)
         elif node_view.shape == "ellipse":
             item = PowerSourceItem(

@@ -79,7 +79,7 @@ def populated_handle(tmp_path):
     )
     cable_service.create_cable(
         conn,
-        Cable(cable_id="", project_id=project_id, from_equipment_id=eut.equipment_id, to_equipment_id=peripheral.equipment_id, cable_type="USB", length=1.5, shielded="shielded"),
+        Cable(cable_id="", project_id=project_id, from_ref_id=eut.equipment_id, to_ref_id=peripheral.equipment_id, cable_type="USB", length=1.5, shielded="shielded"),
     )
 
     yield handle

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QFormLayout, QLineEdit, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFormLayout, QLineEdit, QVBoxLayout, QWidget
 
 from models.applicant import Applicant
 from repositories import applicant_repository
@@ -18,15 +18,12 @@ class ApplicantPage(QWidget):
         self.company_en_edit = QLineEdit()
         self.address_jp_edit = QLineEdit()
         self.address_en_edit = QLineEdit()
-        self.notes_edit = QTextEdit()
-        self.notes_edit.setFixedHeight(100)
 
         form = QFormLayout()
         form.addRow("会社名（和文）", self.company_jp_edit)
         form.addRow("会社名（英文）", self.company_en_edit)
         form.addRow("住所（和文）", self.address_jp_edit)
         form.addRow("住所（英文）", self.address_en_edit)
-        form.addRow("備考", self.notes_edit)
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
@@ -34,7 +31,6 @@ class ApplicantPage(QWidget):
 
         for edit in (self.company_jp_edit, self.company_en_edit, self.address_jp_edit, self.address_en_edit):
             edit.editingFinished.connect(self._save)
-        self.notes_edit.textChanged.connect(self._save)
 
     def set_project(self, handle: ProjectHandle) -> None:
         self._handle = handle
@@ -54,7 +50,6 @@ class ApplicantPage(QWidget):
         self.company_en_edit.setText(applicant.company_name_en)
         self.address_jp_edit.setText(applicant.address_jp)
         self.address_en_edit.setText(applicant.address_en)
-        self.notes_edit.setPlainText(applicant.notes)
         self._loading = False
 
     def _save(self) -> None:
@@ -64,5 +59,4 @@ class ApplicantPage(QWidget):
         self._applicant.company_name_en = self.company_en_edit.text()
         self._applicant.address_jp = self.address_jp_edit.text()
         self._applicant.address_en = self.address_en_edit.text()
-        self._applicant.notes = self.notes_edit.toPlainText()
         self._applicant = applicant_repository.upsert(self._handle.connection, self._applicant)

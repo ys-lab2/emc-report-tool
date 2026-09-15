@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QRadioButton,
@@ -65,6 +66,10 @@ class EquipmentEditDialog(QDialog):
         self.notes_edit = QTextEdit(self._equipment.notes)
         self.notes_edit.setFixedHeight(80)
 
+        self.width_edit = QLineEdit(_format_dimension(self._equipment.width_mm))
+        self.depth_edit = QLineEdit(_format_dimension(self._equipment.depth_mm))
+        self.height_edit = QLineEdit(_format_dimension(self._equipment.height_mm))
+
         self.placement_standalone_radio = QRadioButton("独立機器")
         self.placement_embedded_radio = QRadioButton("他機器に内蔵・挿入")
         self.placement_attached_radio = QRadioButton("外付け取付")
@@ -101,6 +106,17 @@ class EquipmentEditDialog(QDialog):
         form.addRow("製造者", self.manufacturer_edit)
         form.addRow("FCC ID", self.fcc_id_edit)
         form.addRow("BSMI ID", self.bsmi_id_edit)
+
+        dimension_row = QHBoxLayout()
+        dimension_row.addWidget(QLabel("W"))
+        dimension_row.addWidget(self.width_edit)
+        dimension_row.addWidget(QLabel("D"))
+        dimension_row.addWidget(self.depth_edit)
+        dimension_row.addWidget(QLabel("H"))
+        dimension_row.addWidget(self.height_edit)
+        dimension_row.addWidget(QLabel("mm"))
+        form.addRow("寸法(EUTの場合)", dimension_row)
+
         form.addRow("備考", self.notes_edit)
 
         placement_row = QVBoxLayout()
@@ -164,6 +180,9 @@ class EquipmentEditDialog(QDialog):
         self._equipment.fcc_id = self.fcc_id_edit.text()
         self._equipment.bsmi_id = self.bsmi_id_edit.text()
         self._equipment.notes = self.notes_edit.toPlainText()
+        self._equipment.width_mm = _parse_dimension(self.width_edit.text())
+        self._equipment.depth_mm = _parse_dimension(self.depth_edit.text())
+        self._equipment.height_mm = _parse_dimension(self.height_edit.text())
         self._equipment.placement_type = self._selected_placement()
         self._equipment.parent_equipment_id = (
             self.parent_combo.currentData() if self.parent_combo.isEnabled() else None
@@ -183,3 +202,21 @@ class EquipmentEditDialog(QDialog):
     @property
     def equipment(self) -> Equipment:
         return self._equipment
+
+
+def _format_dimension(value: float | None) -> str:
+    if value is None:
+        return ""
+    if value == int(value):
+        return str(int(value))
+    return str(value)
+
+
+def _parse_dimension(text: str) -> float | None:
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None

@@ -8,13 +8,16 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QRadioButton,
     QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from models.eut_overview import EutOverview
+from models.eut_overview import EutOverview, Frequency
 from repositories import eut_overview_repository
 from services.project_service import ProjectHandle
 
@@ -26,6 +29,9 @@ POWER_SUPPLY_OPTIONS = [
     ("three_phase_3p_e", "3phase (3P(Δ)+E)"),
     ("three_phase_4p_e", "3phase (4P(Y)+E)"),
 ]
+
+FREQUENCY_COLUMNS = ["Frequency", "Usage"]
+FREQUENCY_ID_ROLE = 1001
 
 
 class EutOverviewPage(QWidget):
@@ -46,12 +52,21 @@ class EutOverviewPage(QWidget):
         self.sample_type_group.addButton(self.mass_production_radio)
         self.sample_type_group.addButton(self.pre_production_radio)
 
-        self.width_edit = QLineEdit()
-        self.depth_edit = QLineEdit()
-        self.height_edit = QLineEdit()
-
         self.max_frequency_edit = QLineEdit()
         self.wireless_frequency_edit = QLineEdit()
+
+        self.frequency_table = QTableWidget(0, len(FREQUENCY_COLUMNS))
+        self.frequency_table.setHorizontalHeaderLabels(FREQUENCY_COLUMNS)
+        self.frequency_table.horizontalHeader().setStretchLastSection(True)
+        self.frequency_table.itemChanged.connect(self._on_frequency_item_changed)
+        add_frequency_button = QPushButton("+ 周波数を追加")
+        delete_frequency_button = QPushButton("削除")
+        add_frequency_button.clicked.connect(self._add_frequency)
+        delete_frequency_button.clicked.connect(self._delete_selected_frequency)
+        frequency_toolbar = QHBoxLayout()
+        frequency_toolbar.addWidget(add_frequency_button)
+        frequency_toolbar.addWidget(delete_frequency_button)
+        frequency_toolbar.addStretch(1)
 
         self.power_checkboxes: dict[str, QCheckBox] = {
             code: QCheckBox(label) for code, label in POWER_SUPPLY_OPTIONS
@@ -84,17 +99,18 @@ class EutOverviewPage(QWidget):
         sample_type_row.addStretch(1)
         form.addRow("E) Type of Sample Tested", sample_type_row)
 
-        dimension_row = QHBoxLayout()
-        dimension_row.addWidget(QLabel("W"))
-        dimension_row.addWidget(self.width_edit)
-        dimension_row.addWidget(QLabel("D"))
-        dimension_row.addWidget(self.depth_edit)
-        dimension_row.addWidget(QLabel("H"))
-        dimension_row.addWidget(self.height_edit)
-        dimension_row.addWidget(QLabel("mm"))
-        form.addRow("F) Dimension(mm)", dimension_row)
+        dimension_note = QLabel("F) Dimension(mm)：EUT毎の寸法は「機器リスト」の各機器編集画面で入力してください。")
+        dimension_note.setWordWrap(True)
+        form.addRow("", dimension_note)
 
         form.addRow("G) Max Frequency", self.max_frequency_edit)
+
+        frequency_box = QGroupBox("G) 周波数リスト")
+        frequency_layout = QVBoxLayout(frequency_box)
+        frequency_layout.addLayout(frequency_toolbar)
+        frequency_layout.addWidget(self.frequency_table)
+        form.addRow(frequency_box)
+
         form.addRow("H) Wireless frequency", self.wireless_frequency_edit)
 
         power_box = QGroupBox()
@@ -128,9 +144,6 @@ class EutOverviewPage(QWidget):
             self.model_name_edit,
             self.serial_edit,
             self.operating_program_edit,
-            self.width_edit,
-            self.depth_edit,
-            self.height_edit,
             self.max_frequency_edit,
             self.wireless_frequency_edit,
             self.rating_power_value_edit,
@@ -172,12 +185,13 @@ class EutOverviewPage(QWidget):
         self.mass_production_radio.setChecked(overview.sample_type == "mass_production")
         self.pre_production_radio.setChecked(overview.sample_type == "pre_production")
 
-        self.width_edit.setText(_format_dimension(overview.width_mm))
-        self.depth_edit.setText(_format_dimension(overview.depth_mm))
-        self.height_edit.setText(_format_dimension(overview.height_mm))
-
         self.max_frequency_edit.setText(overview.max_frequency)
         self.wireless_frequency_edit.setText(overview.wireless_frequency)
+
+        self.frequency_table.setRowCount(0)
+        if overview.eut_overview_id:
+            for freq in eut_overview_repository.list_frequencies(conn, overview.eut_overview_id):
+                self._append_frequency_row(freq)
 
         for code, checkbox in self.power_checkboxes.items():
             checkbox.setChecked(code in overview.rating_power_supply_types)
@@ -211,10 +225,6 @@ class EutOverviewPage(QWidget):
         else:
             overview.sample_type = ""
 
-        overview.width_mm = _parse_dimension(self.width_edit.text())
-        overview.depth_mm = _parse_dimension(self.depth_edit.text())
-        overview.height_mm = _parse_dimension(self.height_edit.text())
-
         overview.max_frequency = self.max_frequency_edit.text()
         overview.wireless_frequency = self.wireless_frequency_edit.text()
 
@@ -234,20 +244,62 @@ class EutOverviewPage(QWidget):
 
         self._overview = eut_overview_repository.upsert(self._handle.connection, overview)
 
+    # --- 周波数リスト（G）---
 
-def _format_dimension(value: float | None) -> str:
-    if value is None:
-        return ""
-    if value == int(value):
-        return str(int(value))
-    return str(value)
+    def _append_frequency_row(self, freq: Frequency) -> None:
+        row = self.frequency_table.rowCount()
+        self.frequency_table.insertRow(row)
+        value_item = QTableWidgetItem(freq.value)
+        value_item.setData(FREQUENCY_ID_ROLE, freq.frequency_id)
+        self.frequency_table.setItem(row, 0, value_item)
+        self.frequency_table.setItem(row, 1, QTableWidgetItem(freq.usage_note))
 
+    def _on_frequency_item_changed(self, item: QTableWidgetItem) -> None:
+        if self._loading:
+            return
+        self._save_frequency_row(item.row())
 
-def _parse_dimension(text: str) -> float | None:
-    text = text.strip()
-    if not text:
-        return None
-    try:
-        return float(text)
-    except ValueError:
-        return None
+    def _save_frequency_row(self, row: int) -> None:
+        if self._handle is None or self._loading:
+            return
+        value_item = self.frequency_table.item(row, 0)
+        if value_item is None:
+            return
+        frequency_id = value_item.data(FREQUENCY_ID_ROLE)
+        usage_item = self.frequency_table.item(row, 1)
+        freq = Frequency(
+            frequency_id=frequency_id,
+            eut_overview_id=self._overview.eut_overview_id,
+            value=value_item.text(),
+            usage_note=usage_item.text() if usage_item else "",
+            sort_order=row,
+        )
+        eut_overview_repository.update_frequency(self._handle.connection, freq)
+
+    def _add_frequency(self) -> None:
+        if self._handle is None or self._overview is None:
+            return
+        if not self._overview.eut_overview_id:
+            self._save()
+        freq = eut_overview_repository.add_frequency(
+            self._handle.connection,
+            Frequency(
+                frequency_id="",
+                eut_overview_id=self._overview.eut_overview_id,
+                sort_order=self.frequency_table.rowCount(),
+            ),
+        )
+        self._append_frequency_row(freq)
+
+    def _delete_selected_frequency(self) -> None:
+        if self._handle is None:
+            return
+        row = self.frequency_table.currentRow()
+        if row < 0:
+            return
+        value_item = self.frequency_table.item(row, 0)
+        if value_item is None:
+            return
+        frequency_id = value_item.data(FREQUENCY_ID_ROLE)
+        eut_overview_repository.delete_frequency(self._handle.connection, frequency_id)
+        self.frequency_table.removeRow(row)

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from models.cable import Cable
-from repositories import cable_repository, equipment_repository
+from repositories import cable_repository, equipment_repository, ground_connection_repository, power_source_repository
 from services import cable_service
 from services.project_service import ProjectHandle
 from ui.dialogs.inline_component_dialog import InlineComponentDialog
@@ -38,6 +38,22 @@ COLUMNS = [
     "屋外直接接続",
     "備考",
 ]
+
+
+def _connectable_nodes(conn, project_id: str) -> list[tuple[str, str, str, str]]:
+    """(ref_type, ref_id, label)のタプル一覧。ケーブルはEquipmentだけでなく
+    PowerSource(電源)・GroundConnection(GND/PE)にも接続できる。"""
+    nodes: list[tuple[str, str, str, str]] = []
+    for eq in equipment_repository.list_by_project(conn, project_id):
+        label = f"{eq.display_id} : {eq.description or eq.model_name}"
+        nodes.append(("Equipment", eq.equipment_id, label))
+    for power in power_source_repository.list_by_project(conn, project_id):
+        label = f"[電源] {power.label or power.kind}"
+        nodes.append(("PowerSource", power.power_source_id, label))
+    for ground in ground_connection_repository.list_by_project(conn, project_id):
+        label = f"[GND] {ground.label or ground.kind}"
+        nodes.append(("GroundConnection", ground.ground_connection_id, label))
+    return nodes
 
 
 class CableListPage(QWidget):
@@ -80,14 +96,14 @@ class CableListPage(QWidget):
         conn = self._handle.connection
         project_id = self._handle.project.project_id
         cables = cable_repository.list_by_project(conn, project_id)
-        equipments = equipment_repository.list_by_project(conn, project_id)
+        nodes = _connectable_nodes(conn, project_id)
 
         for cable in cables:
-            self._append_row(cable, equipments)
+            self._append_row(cable, nodes)
 
         self._loading = False
 
-    def _append_row(self, cable: Cable, equipments) -> None:
+    def _append_row(self, cable: Cable, nodes) -> None:
         row = self.table.rowCount()
         self.table.insertRow(row)
 
@@ -95,13 +111,13 @@ class CableListPage(QWidget):
         no_item.setData(CABLE_ID_ROLE, cable.cable_id)
         self.table.setItem(row, 0, no_item)
 
-        from_combo = self._make_equipment_combo(equipments, cable.from_equipment_id)
+        from_combo = self._make_node_combo(nodes, cable.from_ref_type, cable.from_ref_id)
         from_combo.currentIndexChanged.connect(lambda _=None, r=row: self._save_row(r))
         self.table.setCellWidget(row, 1, from_combo)
 
         self.table.setItem(row, 2, QTableWidgetItem(cable.from_port))
 
-        to_combo = self._make_equipment_combo(equipments, cable.to_equipment_id)
+        to_combo = self._make_node_combo(nodes, cable.to_ref_type, cable.to_ref_id)
         to_combo.currentIndexChanged.connect(lambda _=None, r=row: self._save_row(r))
         self.table.setCellWidget(row, 3, to_combo)
 
@@ -121,14 +137,15 @@ class CableListPage(QWidget):
 
         self.table.setItem(row, 10, QTableWidgetItem(cable.notes))
 
-    def _make_equipment_combo(self, equipments, selected_id: str) -> QComboBox:
+    def _make_node_combo(self, nodes, selected_ref_type: str, selected_ref_id: str) -> QComboBox:
         combo = QComboBox()
-        for eq in equipments:
-            label = f"{eq.display_id} : {eq.description or eq.model_name}"
-            combo.addItem(label, eq.equipment_id)
-        index = combo.findData(selected_id)
-        if index >= 0:
-            combo.setCurrentIndex(index)
+        for ref_type, ref_id, label in nodes:
+            combo.addItem(label, (ref_type, ref_id))
+        for i in range(combo.count()):
+            ref_type, ref_id = combo.itemData(i)
+            if ref_type == selected_ref_type and ref_id == selected_ref_id:
+                combo.setCurrentIndex(i)
+                break
         return combo
 
     def _make_option_combo(self, options, selected_value: str) -> QComboBox:
@@ -166,9 +183,9 @@ class CableListPage(QWidget):
         shielded_combo: QComboBox = self.table.cellWidget(row, 7)
         outdoor_combo: QComboBox = self.table.cellWidget(row, 9)
 
-        cable.from_equipment_id = from_combo.currentData()
+        cable.from_ref_type, cable.from_ref_id = from_combo.currentData()
         cable.from_port = self._text(row, 2)
-        cable.to_equipment_id = to_combo.currentData()
+        cable.to_ref_type, cable.to_ref_id = to_combo.currentData()
         cable.to_port = self._text(row, 4)
         cable.cable_type = self._text(row, 5)
         cable.length = _parse_float(self._text(row, 6))
@@ -192,16 +209,20 @@ class CableListPage(QWidget):
             return
         conn = self._handle.connection
         project_id = self._handle.project.project_id
-        equipments = equipment_repository.list_by_project(conn, project_id)
-        if len(equipments) < 2:
-            QMessageBox.information(self, "機器が不足しています", "ケーブルを追加するには機器が2台以上必要です。")
+        nodes = _connectable_nodes(conn, project_id)
+        if len(nodes) < 2:
+            QMessageBox.information(
+                self, "接続先が不足しています", "ケーブルを追加するには機器・電源・GNDが2つ以上必要です。"
+            )
             return
 
         cable = Cable(
             cable_id="",
             project_id=project_id,
-            from_equipment_id=equipments[0].equipment_id,
-            to_equipment_id=equipments[1].equipment_id,
+            from_ref_type=nodes[0][0],
+            from_ref_id=nodes[0][1],
+            to_ref_type=nodes[1][0],
+            to_ref_id=nodes[1][1],
         )
         cable_service.create_cable(conn, cable)
         self.refresh()

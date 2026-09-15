@@ -31,6 +31,9 @@ class NodeItemBase(QGraphicsObject):
         self._attached_edges: list = []
         self.fill_color: str | None = fill_color
         self.stroke_color: str | None = stroke_color
+        # 外付け取付（attached）のEquipmentは親の枠内に収めず、側面にはみ出せるようにする
+        # （14.節・25.節：内蔵/挿入とは見た目を区別する）。既定は内蔵と同じ「枠内に収める」。
+        self.clamp_to_parent: bool = True
 
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
@@ -123,6 +126,7 @@ class NodeItemBase(QGraphicsObject):
         if (
             change == QGraphicsItem.GraphicsItemChange.ItemPositionChange
             and isinstance(self.parentItem(), NodeItemBase)
+            and self.clamp_to_parent
         ):
             parent = self.parentItem()
             max_x = max(parent.width - self._width, 0)

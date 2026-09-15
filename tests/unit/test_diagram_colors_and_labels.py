@@ -64,7 +64,7 @@ def test_set_edge_color_persists(conn, project):
         conn, Equipment(equipment_id="", project_id=project.project_id, display_id="B", category="Peripheral")
     )
     cable = cable_service.create_cable(
-        conn, Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=b.equipment_id)
+        conn, Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=b.equipment_id)
     )
     edge = diagram_repository.get_edge_by_ref(conn, project.project_id, "Cable", cable.cable_id)
 

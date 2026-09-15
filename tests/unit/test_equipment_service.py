@@ -64,7 +64,7 @@ def test_deletion_impact_reports_cables_and_children(conn, project):
     c = equipment_service.create_equipment(conn, make_equipment(project.project_id, "C"))
     cable_service.create_cable(
         conn,
-        Cable(cable_id="", project_id=project.project_id, from_equipment_id=a.equipment_id, to_equipment_id=c.equipment_id),
+        Cable(cable_id="", project_id=project.project_id, from_ref_id=a.equipment_id, to_ref_id=c.equipment_id),
     )
 
     impact = equipment_service.get_deletion_impact(conn, a.equipment_id)

@@ -2,15 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+REF_TYPES = ("Equipment", "PowerSource", "GroundConnection")
+
 
 @dataclass
 class Cable:
     cable_id: str
     project_id: str
     cable_no: int = 0
-    from_equipment_id: str = ""
+    from_ref_type: str = "Equipment"
+    from_ref_id: str = ""
     from_port: str = ""
-    to_equipment_id: str = ""
+    to_ref_type: str = "Equipment"
+    to_ref_id: str = ""
     to_port: str = ""
     cable_type: str = ""
     length: float | None = None

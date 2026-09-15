@@ -28,6 +28,7 @@ class DiagramNodeView:
     node: DiagramNode
     label_lines: list[str] = field(default_factory=list)
     shape: str = "rect"  # "rect" / "ellipse" / "ground"
+    placement_type: str = "standalone"  # Equipmentのみ意味を持つ（14.節：外付けは内蔵と区別表示）
 
 
 @dataclass
@@ -49,7 +50,10 @@ def ensure_node_for_equipment(conn: sqlite3.Connection, equipment: Equipment) ->
 
     if node is None:
         if parent_node_id is not None:
-            relative_x, relative_y = _next_child_position(conn, equipment.project_id, parent_node_id)
+            if equipment.placement_type == "attached":
+                relative_x, relative_y = _next_attached_position(conn, parent_node_id)
+            else:
+                relative_x, relative_y = _next_child_position(conn, equipment.project_id, parent_node_id)
             node = DiagramNode(
                 node_id="",
                 project_id=equipment.project_id,
@@ -221,6 +225,14 @@ def _next_child_position(conn: sqlite3.Connection, project_id: str, parent_node_
     return x, y
 
 
+def _next_attached_position(conn: sqlite3.Connection, parent_node_id: str) -> tuple[float, float]:
+    """外付け取付（attached）の子Nodeは、内蔵（embedded/inserted）と区別するため
+    親Nodeの右辺に半分はみ出す形で配置する（14.節・25.節：内蔵と外付けは見た目を区別する）。"""
+    parent = diagram_repository.get_node(conn, parent_node_id)
+    parent_width = parent.width if parent else DEFAULT_NODE_WIDTH
+    return parent_width - CHILD_NODE_WIDTH / 2, CHILD_TOP_MARGIN
+
+
 def _next_default_position(conn: sqlite3.Connection, project_id: str) -> tuple[float, float]:
     existing_count = len(
         [n for n in diagram_repository.list_nodes_by_project(conn, project_id) if n.parent_node_id is None]
@@ -248,12 +260,17 @@ def build_diagram_view(
             if equipment is None:
                 continue
             label_lines = [equipment.display_id, equipment.description or equipment.model_name]
-            node_views.append(DiagramNodeView(node=node, label_lines=label_lines, shape="rect"))
+            node_views.append(
+                DiagramNodeView(
+                    node=node, label_lines=label_lines, shape="rect", placement_type=equipment.placement_type
+                )
+            )
         elif node.ref_type == "PowerSource":
             power = power_sources.get(node.ref_id)
             if power is None:
                 continue
-            label_lines = [power.label] if power.label else [power.kind]
+            base_label = power.label or power.kind
+            label_lines = [f"{base_label} {power.frequency_hz}".strip()] if power.frequency_hz else [base_label]
             node_views.append(DiagramNodeView(node=node, label_lines=label_lines, shape="ellipse"))
         elif node.ref_type == "GroundConnection":
             ground = grounds.get(node.ref_id)
@@ -271,8 +288,8 @@ def build_diagram_view(
         edge = edge_by_cable_id.get(cable.cable_id)
         if edge is None:
             continue
-        from_node = diagram_repository.get_node_by_ref(conn, project_id, "Equipment", cable.from_equipment_id)
-        to_node = diagram_repository.get_node_by_ref(conn, project_id, "Equipment", cable.to_equipment_id)
+        from_node = diagram_repository.get_node_by_ref(conn, project_id, cable.from_ref_type, cable.from_ref_id)
+        to_node = diagram_repository.get_node_by_ref(conn, project_id, cable.to_ref_type, cable.to_ref_id)
         label_lines = [str(cable.cable_no), cable.cable_type] if cable.cable_type else [str(cable.cable_no)]
         edge_views.append(
             DiagramEdgeView(

@@ -35,6 +35,9 @@ class EquipmentItem(NodeItemBase):
     def paint(self, painter, option, widget=None) -> None:  # noqa: N802
         rect = self.boundingRect()
         pen = QPen(self.effective_stroke_color(), 2 if self.isSelected() else 1)
+        if not self.clamp_to_parent and self.parentItem() is not None:
+            # 外付け取付（attached）は内蔵と区別するため破線枠にする（14.節）
+            pen.setStyle(Qt.PenStyle.DashLine)
         painter.setPen(pen)
         painter.setBrush(QBrush(self.effective_fill_color()))
         painter.drawRect(rect)
@@ -50,9 +53,10 @@ class EquipmentItem(NodeItemBase):
                 line,
             )
 
-        painter.setBrush(QBrush(QColor("#7a7a7a")))
-        painter.setPen(QPen(Qt.GlobalColor.darkGray))
-        painter.drawRect(self._handle_rect())
+        if self.isSelected():
+            painter.setBrush(QBrush(QColor("#7a7a7a")))
+            painter.setPen(QPen(Qt.GlobalColor.darkGray))
+            painter.drawRect(self._handle_rect())
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if self._handle_rect().contains(event.pos()):

@@ -43,8 +43,8 @@ def add(conn: sqlite3.Connection, equipment: Equipment) -> Equipment:
         INSERT INTO equipments
             (equipment_id, project_id, display_id, category, description, model_name,
              serial, manufacturer, fcc_id, bsmi_id, notes, placement_type,
-             parent_equipment_id, sort_order, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             parent_equipment_id, width_mm, depth_mm, height_mm, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             equipment.equipment_id,
@@ -60,6 +60,9 @@ def add(conn: sqlite3.Connection, equipment: Equipment) -> Equipment:
             equipment.notes,
             equipment.placement_type,
             equipment.parent_equipment_id,
+            equipment.width_mm,
+            equipment.depth_mm,
+            equipment.height_mm,
             equipment.sort_order,
             equipment.created_at,
             equipment.updated_at,
@@ -76,7 +79,8 @@ def update(conn: sqlite3.Connection, equipment: Equipment) -> None:
         UPDATE equipments SET
             display_id = ?, category = ?, description = ?, model_name = ?,
             serial = ?, manufacturer = ?, fcc_id = ?, bsmi_id = ?, notes = ?,
-            placement_type = ?, parent_equipment_id = ?, sort_order = ?, updated_at = ?
+            placement_type = ?, parent_equipment_id = ?, width_mm = ?, depth_mm = ?, height_mm = ?,
+            sort_order = ?, updated_at = ?
         WHERE equipment_id = ?
         """,
         (
@@ -91,6 +95,9 @@ def update(conn: sqlite3.Connection, equipment: Equipment) -> None:
             equipment.notes,
             equipment.placement_type,
             equipment.parent_equipment_id,
+            equipment.width_mm,
+            equipment.depth_mm,
+            equipment.height_mm,
             equipment.sort_order,
             equipment.updated_at,
             equipment.equipment_id,
@@ -118,7 +125,11 @@ def clear_parent_for_children(conn: sqlite3.Connection, parent_equipment_id: str
 
 def count_cables_referencing(conn: sqlite3.Connection, equipment_id: str) -> int:
     row = conn.execute(
-        "SELECT COUNT(*) AS cnt FROM cables WHERE from_equipment_id = ? OR to_equipment_id = ?",
+        """
+        SELECT COUNT(*) AS cnt FROM cables
+        WHERE (from_ref_type = 'Equipment' AND from_ref_id = ?)
+           OR (to_ref_type = 'Equipment' AND to_ref_id = ?)
+        """,
         (equipment_id, equipment_id),
     ).fetchone()
     return row["cnt"]
@@ -139,6 +150,9 @@ def _row_to_model(row: sqlite3.Row) -> Equipment:
         notes=row["notes"] or "",
         placement_type=row["placement_type"],
         parent_equipment_id=row["parent_equipment_id"],
+        width_mm=row["width_mm"],
+        depth_mm=row["depth_mm"],
+        height_mm=row["height_mm"],
         sort_order=row["sort_order"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
